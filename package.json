@@ -10,7 +10,9 @@
     "start": "tsx server/index.ts --production",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "check": "npm run typecheck && npm test"
+    "format": "prettier --write src server tests scripts docs *.json *.md *.ts index.html",
+    "format:check": "prettier --check src server tests scripts docs *.json *.md *.ts index.html",
+    "check": "npm run typecheck && npm test && npm run format:check"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.11",
@@ -34,6 +36,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "gh-pages": "^6.3.0",
+    "prettier": "3.9.10",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.5"

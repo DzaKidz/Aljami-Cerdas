@@ -1,6 +1,12 @@
 import type {
-  Answer, AnswerKey, Id, Participant, QuizSession,
-  SessionQuestion, SessionRound, Turn,
+  Answer,
+  AnswerKey,
+  Id,
+  Participant,
+  QuizSession,
+  SessionQuestion,
+  SessionRound,
+  Turn,
 } from "../domain/schema.js";
 
 // Deadline menggunakan performance.now(), hanya berlaku dalam tab yang hidup.
@@ -36,8 +42,7 @@ export type PlaybackState =
   | { phase: "FINISHED" };
 
 export type CameraState =
-  | { status: "OFF" | "REQUESTING" | "CALIBRATING" | "READY" }
-  | { status: "ERROR"; message: string };
+  { status: "OFF" | "REQUESTING" | "CALIBRATING" | "READY" } | { status: "ERROR"; message: string };
 
 export interface SessionState {
   session: QuizSession | null;

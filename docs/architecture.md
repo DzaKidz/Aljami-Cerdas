@@ -25,18 +25,18 @@ erDiagram
     Turn ||--o| Answer : menghasilkan
 ```
 
-| Entitas | Isi utama dan alasan |
-| --- | --- |
-| Teacher | Identitas guru dari penyedia autentikasi melalui `authSubject`. |
-| Material | Jenis PDF/PPTX/MARKDOWN, nama file opsional, dan teks hasil ekstraksi. |
-| Quiz | Judul, sumber materi, status DRAFT/REVIEW/READY/ARCHIVED, revisi dan waktu persetujuan guru. |
-| Question | Soal yang dapat ditinjau guru, opsi, kunci, pembahasan dan tingkat kesulitan. |
-| QuizSession | Pelaksanaan kuis, revisi kuis yang dipakai, jumlah ronde dan status sesi. |
-| Participant | Nama santri dan urutan dalam satu sesi. |
-| SessionQuestion | Salinan isi soal saat sesi dimulai; tidak berubah selama/pasca sesi. |
-| SessionRound | Nomor ronde, mode REGULAR/FINAL dan status. |
-| Turn | Penghubung ronde, peserta, dan soal; menyimpan token percobaan aktif. |
-| Answer | Satu jawaban final per giliran, poin, penyebab berakhir, dan waktu penyimpanan. |
+| Entitas         | Isi utama dan alasan                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| Teacher         | Identitas guru dari penyedia autentikasi melalui `authSubject`.                              |
+| Material        | Jenis PDF/PPTX/MARKDOWN, nama file opsional, dan teks hasil ekstraksi.                       |
+| Quiz            | Judul, sumber materi, status DRAFT/REVIEW/READY/ARCHIVED, revisi dan waktu persetujuan guru. |
+| Question        | Soal yang dapat ditinjau guru, opsi, kunci, pembahasan dan tingkat kesulitan.                |
+| QuizSession     | Pelaksanaan kuis, revisi kuis yang dipakai, jumlah ronde dan status sesi.                    |
+| Participant     | Nama santri dan urutan dalam satu sesi.                                                      |
+| SessionQuestion | Salinan isi soal saat sesi dimulai; tidak berubah selama/pasca sesi.                         |
+| SessionRound    | Nomor ronde, mode REGULAR/FINAL dan status.                                                  |
+| Turn            | Penghubung ronde, peserta, dan soal; menyimpan token percobaan aktif.                        |
+| Answer          | Satu jawaban final per giliran, poin, penyebab berakhir, dan waktu penyimpanan.              |
 
 `Question.content` dan `SessionQuestion.content` disimpan sebagai JSONB bertipe `QuestionContent`. Field mode membedakan bentuk opsi 3 dan 4 secara eksplisit. Ini mempertahankan satu paket teks, pilihan, kunci, dan pembahasan ketika disalin. Relasi lainnya memakai tabel serta foreign key. Tidak ada kolom total skor yang harus terus disinkronkan.
 
@@ -52,7 +52,7 @@ SQL sudah mendefinisikan:
 - Unique urutan peserta per sesi, ditunda hingga COMMIT agar pertukaran posisi dapat dilakukan dalam satu transaksi.
 - CHECK poin 0/1, jawaban kosong bernilai 0, angka ronde positif, dan status dasar.
 
-TypeScript bukan validator input runtime. JSON dari AI, browser, atau API harus divalidasi di layanan sebelum disimpan. Lapisan layanan berikutnya wajib menegakkan aturan yang tidak dipaksakan oleh SQL awal ini:
+TypeScript bukan validator input runtime. API Express memakai Zod untuk memvalidasi JSON dari AI dan browser sebelum penyimpanan. Repository menerapkan transaksi di atas constraint SQL. Aturan layanan:
 
 1. Teks soal dan opsi tidak kosong; opsi tepat A/B/C untuk REGULAR atau A/B/C/D untuk FINAL, tanpa kunci tambahan. Kunci benar harus ada dalam opsi. Kesulitan sesuai mode. Respons AI masuk REVIEW, tidak boleh langsung READY.
 2. Guru hanya dapat membaca/mengubah miliknya. Kunci API AI berada di server. Perubahan soal mengembalikan kuis ke REVIEW, menghapus `reviewedAt`, menaikkan `revision`, dan mengubah `updatedAt`.
@@ -63,7 +63,7 @@ TypeScript bukan validator input runtime. JSON dari AI, browser, atau API harus 
 7. Simpan Answer dan tandai Turn COMPLETED dalam satu transaksi. Kunci sesi/giliran atau gunakan `revision` untuk optimistic concurrency. Cek `attemptId` dan status ACTIVE. Retry untuk `turnId` yang sudah selesai mengembalikan jawaban lama, tidak menimpa atau menambah skor. Berpindah ke giliran berikutnya dilakukan setelah commit berhasil.
 8. Setiap perubahan sesi menaikkan `revision`. Controller mengabaikan respons milik sesi lain dan snapshot lama. Perubahan status/timestamp terkait harus konsisten. Hak akses database produksi perlu membatasi penulisan langsung yang melewati layanan.
 
-Skema ini tidak menyatakan aturan layanan tersebut sudah diimplementasikan. API, repository, validasi input runtime, dan transaksi menjadi pekerjaan fase berikutnya.
+API dan repository sudah tersedia pada `server/app.ts` dan `server/repository.ts`. Versi lokal memakai satu profil guru serta database PGlite. Soal digunakan berulang dari bank biasa/final ketika jumlah giliran melebihi jumlah soal. Autentikasi banyak guru belum diterapkan.
 
 ## Struktur state global
 
@@ -82,11 +82,11 @@ interface SessionState {
 }
 ```
 
-Gunakan satu store per layar/sesi guru. Data dinormalisasi menurut ID supaya penggantian peserta aktif tidak menyalin semua soal. `queue` adalah draft urutan pada browser, sementara `Participant.queuePosition` mencerminkan data yang sudah disimpan. `queueDirty` menandai kebutuhan simpan. API antrean menerima seluruh daftar ID beserta revisi sesi, memperbarui posisi dalam transaksi, lalu mengembalikan snapshot baru. Gagal simpan mempertahankan draft dan mencegah sesi dimulai sampai sinkron.
+Gunakan satu store per layar/sesi guru. Data dinormalisasi menurut ID supaya penggantian peserta aktif tidak menyalin semua soal. Store menyediakan `queue` dan `queueDirty` untuk draft urutan berdasarkan ID. Pada UI saat ini, persiapan kelas menyimpan daftar nama lokal; `POST /sessions` menerima urutan lengkap dan membuat peserta serta giliran dalam satu transaksi. Antrean tidak diubah setelah sesi dibuat.
 
 `loadSnapshot` mengganti data, bukan menambah poin. Pemanggilan berulang atas snapshot yang sama tidak menggandakan skor. Mode default RESTORE dipakai saat membuka atau memulihkan sesi; sesi aktif masuk PAUSED/RELOAD dan kamera OFF agar timer lama tidak berjalan menggunakan referensi waktu yang sudah hilang. Setelah commit API, gunakan `loadSnapshot(snapshot, "SYNC")`: kamera dan playback tetap hidup, hanya revisi lebih baru untuk sesi yang sedang dibuka yang diterima. Controller kemudian menerbitkan fase berikutnya. Mode RESTORE juga dipakai untuk beralih sesi secara sengaja; adapter pembuka sesi memeriksa respons terhadap permintaan terbaru agar respons lama tidak membuka ulang sesi yang sudah ditinggalkan.
 
-`publishPlayback` adalah batas internal bagi controller kuis yang akan dibangun. Ia menyimpan state terdiskriminasi serta menolak ID sesi/giliran dan token percobaan yang tidak sesuai. Ia **bukan** implementasi state machine lengkap: aturan transisi, pengendalian deadline, debounce gestur, dan penyimpanan ke API belum berjalan. Jangan memanggilnya langsung dari sembarang komponen.
+`publishPlayback` adalah batas internal bagi controller `PlaySession`. Ia menyimpan fase dan menolak ID sesi/giliran serta token percobaan yang tidak sesuai. Timer murni berada di `src/domain/timer.ts`; controller mengatur requestAnimationFrame, stabilitas gestur, perpindahan layar dan commit jawaban. Stream dan landmark hanya berada pada adapter kamera di browser.
 
 Tidak ada `setScore` atau `incrementScore`. `selectLeaderboard` menjumlahkan jawaban yang sudah dikonfirmasi server, termasuk peserta berskor nol. Tanpa parameter ronde, skor bersifat kumulatif; dengan `roundId`, hanya skor ronde itu. `entries.slice(0, 3)` menyiapkan podium dan `entries.slice(3)` daftar sisanya. Skor sama mendapat peringkat sama (1, 1, 3); posisi tampilan memakai urutan pendaftaran lalu ID agar stabil, tanpa bonus tersembunyi. Untuk kurang dari tiga peserta, tampilkan podium sesuai jumlah peserta.
 
@@ -111,14 +111,14 @@ Saat ronde final selesai, controller tetap menampilkan ROUND_RESULTS dengan skor
 
 Timer menyimpan deadline absolut berbasis `performance.now()`, bukan angka yang dikurangi tiap interval. Nilai tampilan dihitung `max(0, deadlineMs - now)`. Timer fase COUNTDOWN memuat `lastDetectedAnswer`; nilai tidak valid/tangan turun menjadi null. Timer fase LOCK memuat `candidate`, `deadlineMs`, serta `suspendedMainRemainingMs`.
 
-Kontrak untuk implementasi fase 3:
+Perilaku controller dan timer:
 
-1. Mulai giliran dengan deadline `now + 10_000` dan jawaban null.
+1. Mulai giliran dengan deadline `now + answerDurationMs` dan jawaban null. Durasi tersedia: 10.000, 60.000, 120.000, 180.000 atau 300.000 ms. Migrasi aditif memberi sesi lama nilai awal 10.000 ms.
 2. Setelah gestur stabil yang valid: simpan sisa utama, lalu set deadline lock `now + min(3_000, sisaUtama)`. Pemakaian minimum menjaga lock tidak memperpanjang timer yang tinggal kurang dari tiga detik.
 3. Selama lock, waktu utama dibekukan. Tangan turun atau kandidat berubah sebelum deadline membatalkan lock. Deadline utama menjadi `now + suspendedMainRemainingMs`; kandidat harus stabil kembali untuk lock berikutnya. Penggantian kandidat tidak mewarisi waktu lock sebelumnya.
 4. Evaluasi deadline lebih dahulu pada setiap event: event tangan turun tepat/sesudah deadline tidak membatalkan jawaban yang sudah jatuh tempo. Saat lock habis, kirim kandidat; saat timer utama habis, kirim pilihan valid terakhir yang masih terdeteksi, atau null.
-5. Hanya 1/2/3 jari dipetakan ke A/B/C pada ronde biasa. Pada final, 4 jari dipetakan ke D. Stabilitas diukur adapter MediaPipe kelak; 21 landmark, `MediaStream`, model, serta frame kamera disimpan pada ref/adapter, tidak ke store atau database.
-6. Setiap aktivasi ulang giliran membuat `attemptId` baru. Callback lama diabaikan. Refresh tidak otomatis memberi 0: muat hasil tersimpan, minta guru melanjutkan, lalu ulangi giliran yang belum terjawab dengan 10 detik. Jika pengiriman sebelumnya mungkin berhasil, baca hasil server sebelum mengulang.
+5. Hanya 1/2/3 jari dipetakan ke A/B/C pada ronde biasa. Pada final, 4 jari dipetakan ke D. Kandidat harus stabil selama 550 ms. MediaPipe membaca 21 landmark; `MediaStream`, model dan frame kamera disimpan pada ref/adapter, tidak ke store atau database.
+6. Setiap aktivasi ulang giliran membuat `attemptId` baru. Callback lama diabaikan. Refresh tidak otomatis memberi 0: muat hasil tersimpan, minta guru melanjutkan, lalu ulangi giliran yang belum terjawab dengan durasi sesi. Jika pengiriman sebelumnya mungkin berhasil, baca hasil server sebelum mengulang.
 
 Contoh: sisa utama 7 detik, lock berjalan 1 detik, tangan turun. Hitungan utama kembali menjadi 7 detik. Jika sisa utama 2 detik, lock maksimal 2 detik. Batas total waktu dinding dapat melebihi 10 detik setelah pembatalan, sesuai aturan pemulihan sisa waktu.
 
@@ -126,6 +126,15 @@ Contoh: sisa utama 7 detik, lock berjalan 1 detik, tangan turun. Hitungan utama 
 
 Database menyimpan materi, kuis, hasil tinjauan, peserta, jadwal ronde/giliran, salinan soal dan jawaban. Zustand hanya cache sesi serta state tampilan sementara. Tidak ada persist localStorage pada fondasi ini. Deadline monotonic, status kamera READY, stream webcam, dan titik koordinat tidak boleh dipulihkan dari penyimpanan browser. Pemulihan sesi memakai snapshot server dan tindakan guru.
 
-Urutan data: parser browser menghasilkan teks; API AI menghasilkan draft; guru meninjau; API menyimpan kuis READY; layanan sesi membuat jadwal dan salinan; adapter sensor mengirim kandidat ke controller; controller mengirim jawaban; server memberi nilai; store menerima snapshot terkonfirmasi. Penghubung tersebut dijelaskan sebagai kontrak, belum diimplementasikan.
+Urutan data: parser browser menghasilkan teks; API AI menghasilkan draft; guru meninjau; API menyimpan kuis READY; layanan sesi membuat jadwal dan salinan; adapter sensor mengirim kandidat ke controller; controller mengirim jawaban; server memberi nilai; store menerima snapshot terkonfirmasi. Alur tersedia pada aplikasi lokal. AI membutuhkan konfigurasi server; sensor membutuhkan izin kamera.
+
+## Organisasi kode antarmuka
+
+- `src/styles/tokens.css`: warna, tipografi dasar dan fokus; aturan halaman dipecah ke `shell`, `components`, `dashboard`, `editor`, `classroom`, dan `session` dengan breakpoint masing-masing.
+- `src/web/PlaySession.tsx`: controller pelaksanaan, jeda, pemulihan dan transisi sesi.
+- `src/web/Leaderboard.tsx`: presentasi podium dan peringkat, tanpa mutasi skor.
+- `src/web/CameraFeed.tsx`: siklus hidup kamera serta MediaPipe, terpisah dari penyimpanan jawaban.
+- `src/lib/export-scores.ts`: serialisasi CSV dan unduhan, terpisah dari layar kuis.
+- `.prettierrc.json` serta `npm run format:check`: format konsisten untuk source, tes dan dokumentasi.
 
 Referensi API store: [dokumentasi resmi Zustand createStore](https://zustand.docs.pmnd.rs/reference/apis/create-store).

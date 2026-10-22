@@ -17,5 +17,10 @@ if (production) {
   app.use(vite.middlewares);
 }
 const port = Number(process.env.PORT ?? 5173);
-const server = app.listen(port, "127.0.0.1", () => console.log(`Aljami Cerdas: http://localhost:${port}`));
-process.on("SIGINT", () => { server.close(); void db.close().then(() => process.exit(0)); });
+const server = app.listen(port, "127.0.0.1", () =>
+  console.log(`Aljami Cerdas: http://localhost:${port}`),
+);
+process.on("SIGINT", () => {
+  server.close();
+  void db.close().then(() => process.exit(0));
+});

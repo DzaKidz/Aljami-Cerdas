@@ -49,6 +49,7 @@ CREATE TABLE quiz_sessions (
   quiz_id uuid NOT NULL,
   quiz_revision integer NOT NULL CHECK (quiz_revision > 0),
   total_rounds integer NOT NULL CHECK (total_rounds >= 1),
+  answer_duration_ms integer NOT NULL DEFAULT 10000 CHECK (answer_duration_ms IN (10000, 60000, 120000, 180000, 300000)),
   status text NOT NULL DEFAULT 'SETUP' CHECK (status IN ('SETUP', 'RUNNING', 'ROUND_RESULTS', 'COMPLETED')),
   revision integer NOT NULL DEFAULT 1 CHECK (revision > 0),
   created_at timestamptz NOT NULL DEFAULT now(),

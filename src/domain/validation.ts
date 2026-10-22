@@ -3,10 +3,20 @@ import { z } from "zod";
 const text = z.string().trim().min(1, "Teks tidak boleh kosong.").max(3000);
 const common = { prompt: text, explanation: z.string().max(5000) };
 export const questionSchema = z.discriminatedUnion("mode", [
-  z.object({ ...common, mode: z.literal("REGULAR"), difficulty: z.enum(["EASY", "MEDIUM"]),
-    options: z.object({ A: text, B: text, C: text }).strict(), correctAnswer: z.enum(["A", "B", "C"]) }),
-  z.object({ ...common, mode: z.literal("FINAL"), difficulty: z.literal("HARD"),
-    options: z.object({ A: text, B: text, C: text, D: text }).strict(), correctAnswer: z.enum(["A", "B", "C", "D"]) }),
+  z.object({
+    ...common,
+    mode: z.literal("REGULAR"),
+    difficulty: z.enum(["EASY", "MEDIUM"]),
+    options: z.object({ A: text, B: text, C: text }).strict(),
+    correctAnswer: z.enum(["A", "B", "C"]),
+  }),
+  z.object({
+    ...common,
+    mode: z.literal("FINAL"),
+    difficulty: z.literal("HARD"),
+    options: z.object({ A: text, B: text, C: text, D: text }).strict(),
+    correctAnswer: z.enum(["A", "B", "C", "D"]),
+  }),
 ]);
 export const quizInputSchema = z.object({
   title: z.string().trim().min(3, "Judul minimal 3 karakter.").max(150),

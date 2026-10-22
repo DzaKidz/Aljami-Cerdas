@@ -9,20 +9,21 @@ interface QuestionText {
 }
 
 // Dipetakan ke JSONB agar opsi dan kunci ikut tersalin sebagai satu versi soal.
-export type QuestionContent = QuestionText & (
-  | {
-      mode: "REGULAR";
-      difficulty: "EASY" | "MEDIUM";
-      options: { A: string; B: string; C: string };
-      correctAnswer: "A" | "B" | "C";
-    }
-  | {
-      mode: "FINAL";
-      difficulty: "HARD";
-      options: { A: string; B: string; C: string; D: string };
-      correctAnswer: AnswerKey;
-    }
-);
+export type QuestionContent = QuestionText &
+  (
+    | {
+        mode: "REGULAR";
+        difficulty: "EASY" | "MEDIUM";
+        options: { A: string; B: string; C: string };
+        correctAnswer: "A" | "B" | "C";
+      }
+    | {
+        mode: "FINAL";
+        difficulty: "HARD";
+        options: { A: string; B: string; C: string; D: string };
+        correctAnswer: AnswerKey;
+      }
+  );
 
 export interface Teacher {
   id: Id;
@@ -68,6 +69,7 @@ export interface QuizSession {
   quizId: Id;
   quizRevision: number;
   totalRounds: number;
+  answerDurationMs: number;
   status: "SETUP" | "RUNNING" | "ROUND_RESULTS" | "COMPLETED";
   revision: number;
   createdAt: ISODateTime;
